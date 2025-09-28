@@ -553,6 +553,8 @@
         let r = 0,
           r2 = 0,
           maxR = 1; // текущий радиус заливки (в пикселях буфера)
+        let maxD2 = 1; // максимум из dist2 по всему буферу
+        let restarting = false; // флаг перезапуска
 
         function resize() {
           const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -568,10 +570,10 @@
           bctx = buf.getContext('2d');
           bctx.imageSmoothingEnabled = false;
 
-          buildField(); // новые точки
+          buildField(); // новые точки и заполнение dist2/maxD2
           r = 0;
           r2 = 0;
-          maxR = Math.hypot(W, H);
+          maxR = Math.sqrt(maxD2); // вместо hypot(W, H)
           last = undefined;
         }
 
@@ -590,6 +592,7 @@
 
           owner = new Uint16Array(W * H);
           dist2 = new Float32Array(W * H);
+          maxD2 = 0;
 
           // предрассчёт «кто ближе» и расстояний
           for (let y = 0; y < H; y++) {
@@ -608,6 +611,7 @@
               const idx = y * W + x;
               owner[idx] = best;
               dist2[idx] = bestD2;
+              if (bestD2 > maxD2) maxD2 = bestD2; // накопление maxD2
             }
           }
         }
@@ -641,7 +645,7 @@
           last = now;
 
           // рост радиуса (очень медленно). Уменьшай GROW_SPEED — будет ещё медленнее.
-          if (r < maxR) {
+          if (r < maxR && !restarting) {
             r += GROW_SPEED * dt;
             r2 = r * r;
           }
@@ -725,15 +729,17 @@
           ctx.fillStyle = `rgba(0,0,0,${VEIL_ALPHA})`;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-          // === Перезапуск только когда НИ ОДНА область больше не растёт ===
-          // В нашей модели это когда радиус «накрыл» диагональ буфера
-          if (r >= maxR) {
-            // короткая пауза, затем — новые случайные точки
+          // === Перезапуск только когда залилось всё ===
+          if (!restarting && r2 >= maxD2 - 1e-3) {
+            // -epsilon на всякий случай
+            restarting = true; // ставим флаг один раз
             setTimeout(() => {
-              buildField();
+              buildField(); // новые точки
               r = 0;
-              r2 = 0;
-              maxR = Math.hypot(W, H);
+              r2 = 0; // радиус с нуля
+              maxR = Math.sqrt(maxD2);
+              last = undefined; // важный сброс для корректного dt
+              restarting = false; // снимаем флаг
             }, 300);
           }
 
