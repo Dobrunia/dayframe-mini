@@ -13,49 +13,53 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'system-ui', 'sans-serif'],
-            },
-          },
-        },
+        theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } },
       };
     </script>
     <style>
-      /* Кастомные стили для чекбоксов */
+      /* Кастомные чекбоксы */
       input[type='checkbox'] {
         appearance: none;
         -webkit-appearance: none;
         -moz-appearance: none;
-        background-color: rgb(38 38 38); /* bg-neutral-800 */
-        border: 2px solid rgb(82 82 82); /* border-neutral-600 */
-        border-radius: 0.5rem; /* rounded-lg */
-        transition: all 0.2s;
+        background: rgb(38 38 38);
+        border: 2px solid rgb(82 82 82);
+        border-radius: 0.5rem;
+        transition: 0.2s;
         cursor: pointer;
       }
-
       input[type='checkbox']:hover {
-        border-color: rgb(52 211 153); /* border-emerald-400 */
+        border-color: rgb(52 211 153);
       }
-
       input[type='checkbox']:checked {
-        background-color: rgb(16 185 129); /* bg-emerald-500 */
-        border-color: rgb(16 185 129); /* border-emerald-500 */
+        background: rgb(16 185 129);
+        border-color: rgb(16 185 129);
         background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='m13.854 3.646-7.5 7.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6 10.293l7.146-7.147a.5.5 0 0 1 .708.708z'/%3e%3c/svg%3e");
         background-size: 12px 12px;
         background-position: center;
         background-repeat: no-repeat;
       }
-
       input[type='checkbox']:focus {
         outline: none;
-        box-shadow: 0 0 0 2px rgb(16 185 129 / 0.5); /* ring-emerald-400 */
+        box-shadow: 0 0 0 2px rgb(16 185 129 / 0.5);
+      }
+      /* Канвас фона на весь экран */
+      #graphBackground canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
       }
     </style>
   </head>
-  <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans text-base">
-    <header class="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between">
+  <body
+    class="bg-neutral-950 text-neutral-100 min-h-screen font-sans text-base relative overflow-hidden"
+  >
+    <!-- Animated Background -->
+    <div id="graphBackground" class="fixed inset-0 pointer-events-none"></div>
+
+    <header class="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between relative z-20">
       <div id="today" class="text-2xl font-semibold"></div>
       <button
         id="btnNew"
@@ -65,7 +69,7 @@
       </button>
     </header>
 
-    <main class="max-w-4xl mx-auto px-4 pb-24">
+    <main class="max-w-4xl mx-auto px-4 pb-24 relative z-20">
       <div id="list" class="space-y-4"></div>
     </main>
 
@@ -105,7 +109,7 @@
             id="mSubs"
             rows="4"
             class="mt-2 w-full px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
-            placeholder="Слайды\nСценарий\nРепетиция"
+            placeholder="Слайды&#10;Сценарий&#10;Репетиция"
           ></textarea>
         </label>
         <div class="flex gap-3 justify-end mt-6">
@@ -161,7 +165,7 @@
             id="eSubs"
             rows="4"
             class="mt-2 w-full px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
-            placeholder="Слайды\nСценарий\nРепетиция"
+            placeholder="Слайды&#10;Сценарий&#10;Репетиция"
           ></textarea>
         </label>
         <div class="flex gap-3 justify-between mt-6">
@@ -196,7 +200,7 @@
       const MSK = 'Europe/Moscow';
       const fmtDate = (d) =>
         new Intl.DateTimeFormat('ru-RU', { dateStyle: 'full', timeZone: MSK }).format(d);
-      const todayKey = () => new Intl.DateTimeFormat('sv-SE', { timeZone: MSK }).format(new Date()); // YYYY-MM-DD
+      const todayKey = () => new Intl.DateTimeFormat('sv-SE', { timeZone: MSK }).format(new Date());
 
       // ===== API helpers =====
       async function apiGet(url, fallback) {
@@ -220,14 +224,12 @@
         }
       }
 
-      // ===== Состояние (в памяти) =====
-      let DATA = []; // шаблоны задач
-      let DONE = {}; // { [YYYY-MM-DD]: string[] }
-
+      // ===== Состояние =====
+      let DATA = [],
+        DONE = {};
       async function loadStateFromServer() {
         DATA = await apiGet('/api/data', []);
         DONE = await apiGet('/api/done', {});
-        // Если данные не загрузились, инициализируем пустыми
         if (!Array.isArray(DATA)) {
           DATA = [];
           await apiPut('/api/data', DATA);
@@ -263,38 +265,26 @@
         } catch {}
       }
 
-      // ===== Рендер =====
+      // ===== Рендер задач =====
       const elList = document.getElementById('list');
       const elToday = document.getElementById('today');
       elToday.textContent = fmtDate(new Date());
-      // taskId -> { remainMs:number, id: number|null, running:boolean }
-      const timers = new Map();
+      const timers = new Map(); // taskId -> { remainMs, id, running }
 
       function render() {
         const day = todayKey();
         const doneSet = new Set(DONE[day] || []);
         elList.innerHTML = '';
-
-        // Сортируем задачи по времени начала (если есть) или по дате создания
-        const sortedTasks = [...DATA].sort((a, b) => {
-          const aStartTime = a.startTime || a.createdAt || 0;
-          const bStartTime = b.startTime || b.createdAt || 0;
-          return aStartTime - bStartTime;
-        });
-
-        sortedTasks.forEach((task) => {
-          const isDone = doneSet.has(task.id);
-          elList.appendChild(renderTask(task, isDone));
-        });
+        const sorted = [...DATA].sort(
+          (a, b) => (a.startTime || a.createdAt || 0) - (b.startTime || b.createdAt || 0)
+        );
+        sorted.forEach((task) => elList.appendChild(renderTask(task, doneSet.has(task.id))));
       }
-
       function renderTask(task, isDone) {
         const card = document.createElement('div');
         card.className = 'rounded-xl bg-neutral-900 p-6 border border-neutral-800';
-
         const header = document.createElement('div');
         header.className = 'flex items-center gap-4';
-
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = isDone;
@@ -303,59 +293,40 @@
         cb.addEventListener('change', async () => {
           await toggleDone(task.id, cb.checked);
         });
-
         const title = document.createElement('label');
         title.className = 'flex-1 font-semibold text-lg cursor-pointer';
         title.textContent = task.title;
         title.setAttribute('for', `task-${task.id}`);
-
         const timer = document.createElement('div');
         timer.className = 'text-base text-neutral-400 font-mono';
         timer.dataset.minutes = task.minutes ?? 25;
         timer.textContent = formatMMSS((task.minutes ?? 25) * 60 * 1000);
-
-        // Показываем планируемое время если есть
-        const plannedTimeEl = document.createElement('div');
-        plannedTimeEl.className = 'text-sm text-neutral-400';
-        if (task.plannedTime) {
-          plannedTimeEl.textContent = `Начало в ${task.plannedTime}`;
-        } else {
-          plannedTimeEl.textContent = '';
-        }
-
+        const planned = document.createElement('div');
+        planned.className = 'text-sm text-neutral-400';
+        planned.textContent = task.plannedTime ? `Начало в ${task.plannedTime}` : '';
         const btnEdit = document.createElement('button');
         btnEdit.className =
-          'p-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-300 hover:text-white transition-all duration-200';
+          'p-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-300 hover:text-white';
         btnEdit.innerHTML = '✏️';
         btnEdit.title = 'Редактировать задачу';
         btnEdit.addEventListener('click', () => openEditModal(task));
-
         const btnStart = document.createElement('button');
         btnStart.className =
-          'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium transition-all duration-200';
+          'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
         btnStart.textContent = 'Старт';
         btnStart.addEventListener('click', () => toggleTimer(task.id, timer, btnStart));
-
-        // восстановление состояния после перерендера
         if (timers.has(task.id)) {
           const st = timers.get(task.id);
           timer.textContent = formatMMSS(st.remainMs);
           btnStart.textContent = st.running ? 'Стоп' : 'Старт';
           if (st.running) {
             btnStart.className =
-              'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium transition-all duration-200';
+              'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium';
           }
         }
-
         header.append(cb, title, timer, btnEdit, btnStart);
         card.appendChild(header);
-
-        // Добавляем планируемое время под заголовком если есть
-        if (task.plannedTime) {
-          card.appendChild(plannedTimeEl);
-        }
-
-        // Подзадачи (локальный чек — без сервера)
+        if (task.plannedTime) card.appendChild(planned);
         if (Array.isArray(task.subtasks) && task.subtasks.length) {
           const ul = document.createElement('ul');
           ul.className = 'mt-4 grid gap-3';
@@ -379,61 +350,47 @@
           });
           card.appendChild(ul);
         }
-
         if (isDone) {
           card.classList.add('opacity-60');
           title.classList.add('line-through');
         }
         return card;
       }
-
       function formatMMSS(ms) {
         const sec = Math.max(0, Math.round(ms / 1000));
         const m = String(Math.floor(sec / 60)).padStart(2, '0');
         const s = String(sec % 60).padStart(2, '0');
         return `${m}:${s}`;
       }
-
       function startInterval(taskId, labelEl, btn) {
-        const state = timers.get(taskId);
-        if (!state) return;
-        state.running = true;
+        const st = timers.get(taskId);
+        if (!st) return;
+        st.running = true;
         btn.textContent = 'Стоп';
         btn.disabled = false;
         btn.className =
-          'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium transition-all duration-200';
-
-        // Записываем время начала задачи
+          'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium';
         const task = DATA.find((x) => x.id === taskId);
         if (task && !task.startTime) {
           task.startTime = Date.now();
-          console.log(
-            'Setting start time for task:',
-            task.title,
-            'at',
-            new Date(task.startTime).toLocaleTimeString()
-          ); // Debug
-          saveData(); // Сохраняем время начала
+          saveData();
         }
-
         const beep = document.getElementById('beep');
         const title = (task || {}).title || '';
-
-        state.id = setInterval(() => {
-          state.remainMs -= 1000;
-          labelEl.textContent = formatMMSS(state.remainMs);
-          if (state.remainMs <= 0) {
-            clearInterval(state.id);
-            state.id = null;
-            state.running = false;
-            state.remainMs = 0;
+        st.id = setInterval(() => {
+          st.remainMs -= 1000;
+          labelEl.textContent = formatMMSS(st.remainMs);
+          if (st.remainMs <= 0) {
+            clearInterval(st.id);
+            st.id = null;
+            st.running = false;
+            st.remainMs = 0;
             btn.textContent = 'Старт';
             btn.className =
-              'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium transition-all duration-200';
+              'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
             try {
               beep.currentTime = 0;
               beep.play();
-              // Останавливаем звук через 3 секунды
               setTimeout(() => {
                 beep.pause();
                 beep.currentTime = 0;
@@ -443,41 +400,30 @@
           }
         }, 1000);
       }
-
       async function toggleTimer(taskId, labelEl, btn) {
         await ensureNotifyPermission();
-
-        // создать состояние, если его ещё нет
         if (!timers.has(taskId)) {
           const minutes = parseInt(labelEl.dataset.minutes || '25', 10);
           timers.set(taskId, { remainMs: minutes * 60 * 1000, id: null, running: false });
         }
-
-        const state = timers.get(taskId);
-
-        // если запущен — ставим на паузу
-        if (state.running) {
-          clearInterval(state.id);
-          state.id = null;
-          state.running = false;
+        const st = timers.get(taskId);
+        if (st.running) {
+          clearInterval(st.id);
+          st.id = null;
+          st.running = false;
           btn.textContent = 'Старт';
           btn.className =
-            'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium transition-all duration-200';
+            'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
           return;
         }
-
-        // если на паузе/ещё не запускался — запускаем/продолжаем
         startInterval(taskId, labelEl, btn);
       }
-
       async function toggleDone(taskId, checked) {
-        // стоп таймера
         if (timers.has(taskId)) {
           const st = timers.get(taskId);
           if (st.running) clearInterval(st.id);
           timers.delete(taskId);
         }
-
         const day = todayKey();
         const arr = Array.from(new Set([...(DONE[day] || [])]));
         if (checked) {
@@ -491,7 +437,7 @@
         render();
       }
 
-      // ===== Создание задачи =====
+      // ===== Модалки (создание/редактирование) =====
       const modal = document.getElementById('modal');
       document.getElementById('btnNew').onclick = () => {
         modal.classList.remove('hidden');
@@ -500,7 +446,6 @@
       document.getElementById('mCancel').onclick = () => {
         modal.classList.add('hidden');
       };
-
       document.getElementById('mSave').onclick = async () => {
         const title = document.getElementById('mTitle').value.trim();
         const minutes = parseInt(document.getElementById('mMinutes').value || '25', 10);
@@ -526,30 +471,23 @@
         document.getElementById('mSubs').value = '';
         render();
       };
-
-      // ===== Редактирование задачи =====
       let currentEditTask = null;
       const editModal = document.getElementById('editModal');
-
       function openEditModal(task) {
         currentEditTask = task;
         document.getElementById('eTitle').value = task.title;
         document.getElementById('eMinutes').value = task.minutes || 25;
         document.getElementById('ePlannedTime').value = task.plannedTime || '';
         document.getElementById('eSubs').value = (task.subtasks || []).join('\n');
-
         editModal.classList.remove('hidden');
         editModal.classList.add('flex');
       }
-
       document.getElementById('eCancel').onclick = () => {
         editModal.classList.add('hidden');
         currentEditTask = null;
       };
-
       document.getElementById('eSave').onclick = async () => {
         if (!currentEditTask) return;
-
         const title = document.getElementById('eTitle').value.trim();
         const minutes = parseInt(document.getElementById('eMinutes').value || '25', 10);
         const plannedTime = document.getElementById('ePlannedTime').value;
@@ -558,14 +496,11 @@
           .value.split('\n')
           .map((s) => s.trim())
           .filter(Boolean);
-
         if (!title) return;
-
-        // Обновляем задачу
-        const taskIndex = DATA.findIndex((t) => t.id === currentEditTask.id);
-        if (taskIndex !== -1) {
-          DATA[taskIndex] = {
-            ...DATA[taskIndex],
+        const i = DATA.findIndex((t) => t.id === currentEditTask.id);
+        if (i !== -1) {
+          DATA[i] = {
+            ...DATA[i],
             title,
             minutes,
             plannedTime: plannedTime || null,
@@ -573,44 +508,212 @@
           };
           await saveData();
         }
-
         editModal.classList.add('hidden');
         currentEditTask = null;
         render();
       };
-
       document.getElementById('eDelete').onclick = async () => {
         if (!currentEditTask) return;
-
-        // Подтверждение удаления
-        if (!confirm(`Вы уверены, что хотите удалить задачу "${currentEditTask.title}"?`)) {
-          return;
-        }
-
-        // Удаляем задачу из DATA
-        const taskIndex = DATA.findIndex((t) => t.id === currentEditTask.id);
-        if (taskIndex !== -1) {
-          DATA.splice(taskIndex, 1);
+        if (!confirm(`Вы уверены, что хотите удалить задачу "${currentEditTask.title}"?`)) return;
+        const i = DATA.findIndex((t) => t.id === currentEditTask.id);
+        if (i !== -1) {
+          DATA.splice(i, 1);
           await saveData();
         }
-
-        // Останавливаем таймер если он запущен
         if (timers.has(currentEditTask.id)) {
           const st = timers.get(currentEditTask.id);
           if (st.running) clearInterval(st.id);
           timers.delete(currentEditTask.id);
         }
-
         editModal.classList.add('hidden');
         currentEditTask = null;
         render();
       };
 
-      // ===== Старт =====
-      (async function init() {
-        await loadStateFromServer();
+      // ===== Фон: «растущая» Voronoi-заливка без общего таймера =====
+      // перезапуск только когда все области уже доросли до краёв
+      function createVoronoiWaveBackground() {
+        const container = document.getElementById('graphBackground');
+        container.innerHTML = '';
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: true });
+        container.appendChild(canvas);
+
+        // --- параметры яркости/скорости ---
+        const SCALE = 0.25; // внутренний буфер (производительность)
+        const GROW_SPEED = 1; // пикселей в секунду (медленно). Уменьши — будет ещё медленнее
+        const GRID_ALPHA = 0.26; // заметность сетки
+        const VEIL_ALPHA = 0.015; // тёмная «вуаль» поверх — меньше => ярче
+
+        // состояние
+        let buf, bctx, W, H; // размеры «низкого» буфера
+        let seeds, owner, dist2; // точки, для каждого пикселя: чей «владелец» и расстояние^2
+        let colors; // h,s,l,a для каждой ячейки
+        let last = undefined; // время прошлого кадра
+        let r = 0,
+          r2 = 0,
+          maxR = 1; // текущий радиус заливки (в пикселях буфера)
+
+        function resize() {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.floor(window.innerWidth * dpr);
+          canvas.height = Math.floor(window.innerHeight * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+          W = Math.max(200, Math.floor(window.innerWidth * SCALE));
+          H = Math.max(140, Math.floor(window.innerHeight * SCALE));
+          buf = document.createElement('canvas');
+          buf.width = W;
+          buf.height = H;
+          bctx = buf.getContext('2d');
+          bctx.imageSmoothingEnabled = false;
+
+          buildField(); // новые точки
+          r = 0;
+          r2 = 0;
+          maxR = Math.hypot(W, H);
+          last = undefined;
+        }
+
+        function buildField() {
+          const N = 48; // сколько «шаров»
+          seeds = new Array(N);
+          colors = new Array(N);
+          for (let i = 0; i < N; i++) {
+            seeds[i] = [Math.random() * W, Math.random() * H];
+            const h = Math.round((i / N) * 360);
+            // ярче: lightness 62%, альфа 0.78
+            colors[i] = [h, 70, 62, 0.78];
+          }
+
+          owner = new Uint16Array(W * H);
+          dist2 = new Float32Array(W * H);
+
+          // предрассчёт «кто ближе» и расстояний
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              let best = 0,
+                bestD2 = Infinity;
+              for (let s = 0; s < N; s++) {
+                const dx = x - seeds[s][0],
+                  dy = y - seeds[s][1];
+                const d2 = dx * dx + dy * dy;
+                if (d2 < bestD2) {
+                  bestD2 = d2;
+                  best = s;
+                }
+              }
+              const idx = y * W + x;
+              owner[idx] = best;
+              dist2[idx] = bestD2;
+            }
+          }
+        }
+
+        // быстрый HSL -> RGB
+        function hslToRgb(h, s, l) {
+          if (s === 0) {
+            const v = l * 255;
+            return [v, v, v];
+          }
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
+          const to = (t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1 / 6) return p + (q - p) * 6 * t;
+            if (t < 1 / 2) return q;
+            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+          };
+          return [
+            Math.round(to(h + 1 / 3) * 255),
+            Math.round(to(h) * 255),
+            Math.round(to(h - 1 / 3) * 255),
+          ];
+        }
+
+        function drawFrame(now) {
+          // dt в секундах
+          const dt = (now - (last ?? now)) / 1000;
+          last = now;
+
+          // рост радиуса (очень медленно). Уменьшай GROW_SPEED — будет ещё медленнее.
+          if (r < maxR) {
+            r += GROW_SPEED * dt;
+            r2 = r * r;
+          }
+
+          // буфер пикселей
+          const id = bctx.createImageData(W, H);
+          const data = id.data;
+          for (let i = 0, p = 0; i < owner.length; i++, p += 4) {
+            if (dist2[i] <= r2) {
+              const [h, s, l, a] = colors[owner[i]];
+              const [R, G, B] = hslToRgb(h / 360, s / 100, l / 100);
+              data[p] = R;
+              data[p + 1] = G;
+              data[p + 2] = B;
+              data[p + 3] = Math.round(a * 255);
+            } else {
+              // прозрачный фон, затем сверху положим лёгкую «вуаль»
+              data[p] = data[p + 1] = data[p + 2] = 0;
+              data[p + 3] = 0;
+            }
+          }
+          bctx.putImageData(id, 0, 0);
+
+          // тонкая сетка (в буфере)
+          bctx.strokeStyle = `rgba(55,65,81,${GRID_ALPHA})`;
+          bctx.lineWidth = 1;
+          const step = Math.max(40, Math.floor(140 * SCALE));
+          for (let x = 0; x < W; x += step) {
+            bctx.beginPath();
+            bctx.moveTo(x, 0);
+            bctx.lineTo(x, H);
+            bctx.stroke();
+          }
+          for (let y = 0; y < H; y += step) {
+            bctx.beginPath();
+            bctx.moveTo(0, y);
+            bctx.lineTo(W, y);
+            bctx.stroke();
+          }
+
+          // вывод на основной канвас
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(buf, 0, 0, canvas.width, canvas.height);
+
+          // лёгкая тёмная вуаль (меньше альфа → фон ярче)
+          ctx.fillStyle = `rgba(0,0,0,${VEIL_ALPHA})`;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // === Перезапуск только когда НИ ОДНА область больше не растёт ===
+          // В нашей модели это когда радиус «накрыл» диагональ буфера
+          if (r >= maxR) {
+            // короткая пауза, затем — новые случайные точки
+            setTimeout(() => {
+              buildField();
+              r = 0;
+              r2 = 0;
+              maxR = Math.hypot(W, H);
+            }, 300);
+          }
+
+          requestAnimationFrame(drawFrame);
+        }
+
+        resize();
+        window.addEventListener('resize', resize);
+        requestAnimationFrame(drawFrame);
+      }
+
+      // Инициализация
+      loadStateFromServer().then(() => {
         render();
-      })();
+      });
+
+      createVoronoiWaveBackground();
     </script>
   </body>
 </html>

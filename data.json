@@ -1,1 +1,1 @@
-[{"id":"9a1f2fa6-1e88-4cda-a79b-43160ff020a6","title":"онлайн курс","minutes":60,"subtasks":[],"createdAt":1759081475291,"plannedTime":"13:00"}]
+[{"id":"9a1f2fa6-1e88-4cda-a79b-43160ff020a6","title":"онлайн курс","minutes":60,"subtasks":[],"createdAt":1759081475291,"plannedTime":"13:00","startTime":1759082088313},{"id":"c56cc30d-2171-4021-af54-e9f909856324","title":"Изучение Go","minutes":60,"plannedTime":null,"subtasks":["тема в ноутбук лм","домашка"],"createdAt":1759081874308,"startTime":1759081897414}]
