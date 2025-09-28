@@ -61,12 +61,21 @@
 
     <header class="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between relative z-20">
       <div id="today" class="text-2xl font-semibold"></div>
-      <button
-        id="btnNew"
-        class="px-6 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-lg"
-      >
-        + Создать задачу
-      </button>
+      <div class="flex items-center gap-4">
+        <select
+          id="backgroundSelect"
+          class="px-3 py-2 rounded-lg bg-neutral-800 text-neutral-100 border border-neutral-700 focus:outline-none focus:border-emerald-500"
+        >
+          <option value="anime-water">Аниме вода</option>
+          <option value="dvd-bounce">DVD заставка</option>
+        </select>
+        <button
+          id="btnNew"
+          class="px-6 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-lg"
+        >
+          + Создать задачу
+        </button>
+      </div>
     </header>
 
     <main class="max-w-4xl mx-auto px-4 pb-24 relative z-20">
@@ -530,6 +539,61 @@
         render();
       };
 
+      // ===== DVD заставка =====
+      function createDVDBackground() {
+        const container = document.getElementById('graphBackground');
+        container.innerHTML = '';
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: true });
+        container.appendChild(canvas);
+
+        let x = 100,
+          y = 100;
+        let dx = 2,
+          dy = 1.5;
+        const logo = 'DVD';
+        const logoSize = 48;
+        let logoColor = '#ff6b6b';
+
+        function resize() {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.floor(window.innerWidth * dpr);
+          canvas.height = Math.floor(window.innerHeight * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function animate() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // Обновляем позицию
+          x += dx;
+          y += dy;
+
+          // Отскок от стен
+          if (x <= 0 || x >= canvas.width - logoSize * 3) {
+            dx = -dx;
+            logoColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+          }
+          if (y <= 0 || y >= canvas.height - logoSize) {
+            dy = -dy;
+            logoColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+          }
+
+          // Рисуем логотип
+          ctx.fillStyle = logoColor;
+          ctx.font = `bold ${logoSize}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(logo, x, y);
+
+          requestAnimationFrame(animate);
+        }
+
+        resize();
+        window.addEventListener('resize', resize);
+        animate();
+      }
+
       // ===== Фон: «растущая» Voronoi-заливка без общего таймера =====
       // перезапуск только когда все области уже доросли до краёв
       function createVoronoiWaveBackground() {
@@ -751,11 +815,30 @@
         requestAnimationFrame(drawFrame);
       }
 
+      // ===== Переключение фонов =====
+      let currentBackground = 'anime-water';
+
+      function switchBackground(type) {
+        if (type === currentBackground) return;
+        currentBackground = type;
+
+        if (type === 'anime-water') {
+          createVoronoiWaveBackground();
+        } else if (type === 'dvd-bounce') {
+          createDVDBackground();
+        }
+      }
+
+      document.getElementById('backgroundSelect').addEventListener('change', (e) => {
+        switchBackground(e.target.value);
+      });
+
       // Инициализация
       loadStateFromServer().then(() => {
         render();
       });
 
+      // Запускаем аниме воду по умолчанию
       createVoronoiWaveBackground();
     </script>
   </body>
