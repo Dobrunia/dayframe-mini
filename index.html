@@ -542,7 +542,7 @@
         // --- параметры яркости/скорости ---
         const SCALE = 0.25; // внутренний буфер (производительность)
         const GROW_SPEED = 1; // пикселей в секунду (медленно). Уменьши — будет ещё медленнее
-        const GRID_ALPHA = 0.26; // заметность сетки
+        const GRID_ALPHA = 0.0; // заметность сетки
         const VEIL_ALPHA = 0.015; // тёмная «вуаль» поверх — меньше => ярче
 
         // состояние
@@ -581,9 +581,11 @@
           colors = new Array(N);
           for (let i = 0; i < N; i++) {
             seeds[i] = [Math.random() * W, Math.random() * H];
-            const h = Math.round((i / N) * 360);
-            // ярче: lightness 62%, альфа 0.78
-            colors[i] = [h, 70, 62, 0.78];
+            // Аниме вода: синие оттенки (180-220 градусов)
+            const h = 180 + Math.random() * 40; // от голубого до синего
+            const s = 60 + Math.random() * 30; // насыщенность 60-90%
+            const l = 45 + Math.random() * 20; // светлота 45-65%
+            colors[i] = [h, s, l, 0.85];
           }
 
           owner = new Uint16Array(W * H);
@@ -647,16 +649,51 @@
           // буфер пикселей
           const id = bctx.createImageData(W, H);
           const data = id.data;
+
+          // Создаем карту пересечений для белых линий
+          const intersectionMap = new Uint8Array(W * H);
+
           for (let i = 0, p = 0; i < owner.length; i++, p += 4) {
             if (dist2[i] <= r2) {
-              const [h, s, l, a] = colors[owner[i]];
-              const [R, G, B] = hslToRgb(h / 360, s / 100, l / 100);
-              data[p] = R;
-              data[p + 1] = G;
-              data[p + 2] = B;
-              data[p + 3] = Math.round(a * 255);
+              // Проверяем пересечения с соседними областями
+              const x = i % W;
+              const y = Math.floor(i / W);
+              let isIntersection = false;
+
+              // Проверяем соседние пиксели на границах областей
+              for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                  if (dx === 0 && dy === 0) continue;
+                  const nx = x + dx;
+                  const ny = y + dy;
+                  if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+                    const nIdx = ny * W + nx;
+                    if (dist2[nIdx] <= r2 && owner[nIdx] !== owner[i]) {
+                      isIntersection = true;
+                      break;
+                    }
+                  }
+                }
+                if (isIntersection) break;
+              }
+
+              if (isIntersection) {
+                // Белые пересечения
+                data[p] = 255;
+                data[p + 1] = 255;
+                data[p + 2] = 255;
+                data[p + 3] = 255;
+              } else {
+                // Обычные синие области
+                const [h, s, l, a] = colors[owner[i]];
+                const [R, G, B] = hslToRgb(h / 360, s / 100, l / 100);
+                data[p] = R;
+                data[p + 1] = G;
+                data[p + 2] = B;
+                data[p + 3] = Math.round(a * 255);
+              }
             } else {
-              // прозрачный фон, затем сверху положим лёгкую «вуаль»
+              // прозрачный фон
               data[p] = data[p + 1] = data[p + 2] = 0;
               data[p + 3] = 0;
             }
