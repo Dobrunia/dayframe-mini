@@ -92,6 +92,14 @@
           />
         </label>
         <label class="block mb-4 text-base">
+          Время начала
+          <input
+            id="mPlannedTime"
+            type="time"
+            class="mt-2 w-32 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+          />
+        </label>
+        <label class="block mb-4 text-base">
           Подзадачи (по одной в строке)
           <textarea
             id="mSubs"
@@ -136,6 +144,14 @@
             type="number"
             min="1"
             value="25"
+            class="mt-2 w-32 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+          />
+        </label>
+        <label class="block mb-4 text-base">
+          Время начала
+          <input
+            id="ePlannedTime"
+            type="time"
             class="mt-2 w-32 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
           />
         </label>
@@ -211,24 +227,9 @@
       async function loadStateFromServer() {
         DATA = await apiGet('/api/data', []);
         DONE = await apiGet('/api/done', {});
-        // если пусто — создадим пример и сохраним на сервере
-        if (!Array.isArray(DATA) || DATA.length === 0) {
-          DATA = [
-            {
-              id: crypto.randomUUID(),
-              title: 'Фокус-блок',
-              minutes: 25,
-              subtasks: ['План', 'Результат'],
-              createdAt: Date.now(),
-            },
-            {
-              id: crypto.randomUUID(),
-              title: 'Разбор почты',
-              minutes: 10,
-              subtasks: ['Входящие', 'Ответить 3 письма'],
-              createdAt: Date.now(),
-            },
-          ];
+        // Если данные не загрузились, инициализируем пустыми
+        if (!Array.isArray(DATA)) {
+          DATA = [];
           await apiPut('/api/data', DATA);
         }
         if (!DONE || typeof DONE !== 'object') {
@@ -313,6 +314,15 @@
         timer.dataset.minutes = task.minutes ?? 25;
         timer.textContent = formatMMSS((task.minutes ?? 25) * 60 * 1000);
 
+        // Показываем планируемое время если есть
+        const plannedTimeEl = document.createElement('div');
+        plannedTimeEl.className = 'text-sm text-neutral-400';
+        if (task.plannedTime) {
+          plannedTimeEl.textContent = `Начало в ${task.plannedTime}`;
+        } else {
+          plannedTimeEl.textContent = '';
+        }
+
         const btnEdit = document.createElement('button');
         btnEdit.className =
           'p-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-300 hover:text-white transition-all duration-200';
@@ -339,6 +349,11 @@
 
         header.append(cb, title, timer, btnEdit, btnStart);
         card.appendChild(header);
+
+        // Добавляем планируемое время под заголовком если есть
+        if (task.plannedTime) {
+          card.appendChild(plannedTimeEl);
+        }
 
         // Подзадачи (локальный чек — без сервера)
         if (Array.isArray(task.subtasks) && task.subtasks.length) {
@@ -392,6 +407,12 @@
         const task = DATA.find((x) => x.id === taskId);
         if (task && !task.startTime) {
           task.startTime = Date.now();
+          console.log(
+            'Setting start time for task:',
+            task.title,
+            'at',
+            new Date(task.startTime).toLocaleTimeString()
+          ); // Debug
           saveData(); // Сохраняем время начала
         }
 
@@ -483,6 +504,7 @@
       document.getElementById('mSave').onclick = async () => {
         const title = document.getElementById('mTitle').value.trim();
         const minutes = parseInt(document.getElementById('mMinutes').value || '25', 10);
+        const plannedTime = document.getElementById('mPlannedTime').value;
         const subs = document
           .getElementById('mSubs')
           .value.split('\n')
@@ -493,12 +515,14 @@
           id: crypto.randomUUID(),
           title,
           minutes,
+          plannedTime: plannedTime || null,
           subtasks: subs,
           createdAt: Date.now(),
         });
         await saveData();
         modal.classList.add('hidden');
         document.getElementById('mTitle').value = '';
+        document.getElementById('mPlannedTime').value = '';
         document.getElementById('mSubs').value = '';
         render();
       };
@@ -511,7 +535,9 @@
         currentEditTask = task;
         document.getElementById('eTitle').value = task.title;
         document.getElementById('eMinutes').value = task.minutes || 25;
+        document.getElementById('ePlannedTime').value = task.plannedTime || '';
         document.getElementById('eSubs').value = (task.subtasks || []).join('\n');
+
         editModal.classList.remove('hidden');
         editModal.classList.add('flex');
       }
@@ -526,6 +552,7 @@
 
         const title = document.getElementById('eTitle').value.trim();
         const minutes = parseInt(document.getElementById('eMinutes').value || '25', 10);
+        const plannedTime = document.getElementById('ePlannedTime').value;
         const subs = document
           .getElementById('eSubs')
           .value.split('\n')
@@ -541,6 +568,7 @@
             ...DATA[taskIndex],
             title,
             minutes,
+            plannedTime: plannedTime || null,
             subtasks: subs,
           };
           await saveData();
