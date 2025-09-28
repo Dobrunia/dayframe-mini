@@ -1,4 +1,1 @@
-@echo off
-pushd %~dp0
-go run server.go
-popd
+start cmd /k "go run server.go"
