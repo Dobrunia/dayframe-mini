@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Daytime Mini</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      /* Кастомные стили для чекбоксов */
+      input[type='checkbox'] {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-color: rgb(38 38 38); /* bg-neutral-800 */
+        border: 2px solid rgb(82 82 82); /* border-neutral-600 */
+        border-radius: 0.5rem; /* rounded-lg */
+        transition: all 0.2s;
+        cursor: pointer;
+      }
+
+      input[type='checkbox']:hover {
+        border-color: rgb(52 211 153); /* border-emerald-400 */
+      }
+
+      input[type='checkbox']:checked {
+        background-color: rgb(16 185 129); /* bg-emerald-500 */
+        border-color: rgb(16 185 129); /* border-emerald-500 */
+        background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='m13.854 3.646-7.5 7.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6 10.293l7.146-7.147a.5.5 0 0 1 .708.708z'/%3e%3c/svg%3e");
+        background-size: 12px 12px;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+
+      input[type='checkbox']:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgb(16 185 129 / 0.5); /* ring-emerald-400 */
+      }
+    </style>
+  </head>
+  <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans text-base">
+    <header class="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between">
+      <div id="today" class="text-2xl font-semibold"></div>
+      <button
+        id="btnNew"
+        class="px-6 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-lg"
+      >
+        + Создать задачу
+      </button>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 pb-24">
+      <div id="list" class="space-y-4"></div>
+    </main>
+
+    <!-- Модал создания задачи -->
+    <div id="modal" class="fixed inset-0 hidden items-center justify-center bg-black/60">
+      <div class="bg-neutral-900 w-full max-w-lg rounded-xl p-6">
+        <div class="text-xl font-semibold mb-4">Новая задача</div>
+        <label class="block mb-4 text-base">
+          Заголовок
+          <input
+            id="mTitle"
+            class="mt-2 w-full px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+            placeholder="Например: Презентация"
+          />
+        </label>
+        <label class="block mb-4 text-base">
+          Длительность (мин)
+          <input
+            id="mMinutes"
+            type="number"
+            min="1"
+            value="25"
+            class="mt-2 w-32 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+          />
+        </label>
+        <label class="block mb-4 text-base">
+          Подзадачи (по одной в строке)
+          <textarea
+            id="mSubs"
+            rows="4"
+            class="mt-2 w-full px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+            placeholder="Слайды\nСценарий\nРепетиция"
+          ></textarea>
+        </label>
+        <div class="flex gap-3 justify-end mt-6">
+          <button
+            id="mCancel"
+            class="px-6 py-3 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-base font-medium"
+          >
+            Отмена
+          </button>
+          <button
+            id="mSave"
+            class="px-6 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-base font-medium"
+          >
+            Сохранить
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модал редактирования задачи -->
+    <div id="editModal" class="fixed inset-0 hidden items-center justify-center bg-black/60">
+      <div class="bg-neutral-900 w-full max-w-lg rounded-xl p-6">
+        <div class="text-xl font-semibold mb-4">Редактировать задачу</div>
+        <label class="block mb-4 text-base">
+          Заголовок
+          <input
+            id="eTitle"
+            class="mt-2 w-full px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+            placeholder="Например: Презентация"
+          />
+        </label>
+        <label class="block mb-4 text-base">
+          Длительность (мин)
+          <input
+            id="eMinutes"
+            type="number"
+            min="1"
+            value="25"
+            class="mt-2 w-32 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+          />
+        </label>
+        <label class="block mb-4 text-base">
+          Подзадачи (по одной в строке)
+          <textarea
+            id="eSubs"
+            rows="4"
+            class="mt-2 w-full px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+            placeholder="Слайды\nСценарий\nРепетиция"
+          ></textarea>
+        </label>
+        <div class="flex gap-3 justify-between mt-6">
+          <button
+            id="eDelete"
+            class="px-6 py-3 rounded-lg bg-red-500 hover:bg-red-600 text-white text-base font-medium"
+          >
+            Удалить
+          </button>
+          <div class="flex gap-3">
+            <button
+              id="eCancel"
+              class="px-6 py-3 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-base font-medium"
+            >
+              Отмена
+            </button>
+            <button
+              id="eSave"
+              class="px-6 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-base font-medium"
+            >
+              Сохранить
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <audio id="beep" src="./time-over.mp3" preload="auto"></audio>
+
+    <script>
+      // ===== Время (Москва) =====
+      const MSK = 'Europe/Moscow';
+      const fmtDate = (d) =>
+        new Intl.DateTimeFormat('ru-RU', { dateStyle: 'full', timeZone: MSK }).format(d);
+      const todayKey = () => new Intl.DateTimeFormat('sv-SE', { timeZone: MSK }).format(new Date()); // YYYY-MM-DD
+
+      // ===== API helpers =====
+      async function apiGet(url, fallback) {
+        try {
+          const r = await fetch(url, { cache: 'no-store' });
+          if (r.ok) return await r.json();
+        } catch (e) {
+          console.warn('GET fail', url, e);
+        }
+        return fallback;
+      }
+      async function apiPut(url, data) {
+        try {
+          await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+        } catch (e) {
+          console.warn('PUT fail', url, e);
+        }
+      }
+
+      // ===== Состояние (в памяти) =====
+      let DATA = []; // шаблоны задач
+      let DONE = {}; // { [YYYY-MM-DD]: string[] }
+
+      async function loadStateFromServer() {
+        DATA = await apiGet('/api/data', []);
+        DONE = await apiGet('/api/done', {});
+        // если пусто — создадим пример и сохраним на сервере
+        if (!Array.isArray(DATA) || DATA.length === 0) {
+          DATA = [
+            {
+              id: crypto.randomUUID(),
+              title: 'Фокус-блок',
+              minutes: 25,
+              subtasks: ['План', 'Результат'],
+              createdAt: Date.now(),
+            },
+            {
+              id: crypto.randomUUID(),
+              title: 'Разбор почты',
+              minutes: 10,
+              subtasks: ['Входящие', 'Ответить 3 письма'],
+              createdAt: Date.now(),
+            },
+          ];
+          await apiPut('/api/data', DATA);
+        }
+        if (!DONE || typeof DONE !== 'object') {
+          DONE = {};
+          await apiPut('/api/done', DONE);
+        }
+      }
+      async function saveData() {
+        await apiPut('/api/data', DATA);
+      }
+      async function saveDone() {
+        await apiPut('/api/done', DONE);
+      }
+
+      // ===== Уведомления =====
+      async function ensureNotifyPermission() {
+        if (!('Notification' in window)) return false;
+        if (Notification.permission === 'granted') return true;
+        if (Notification.permission !== 'denied') {
+          try {
+            return (await Notification.requestPermission()) === 'granted';
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      }
+      function notify(title, body) {
+        try {
+          new Notification(title, { body });
+        } catch {}
+      }
+
+      // ===== Рендер =====
+      const elList = document.getElementById('list');
+      const elToday = document.getElementById('today');
+      elToday.textContent = fmtDate(new Date());
+      // taskId -> { remainMs:number, id: number|null, running:boolean }
+      const timers = new Map();
+
+      function render() {
+        const day = todayKey();
+        const doneSet = new Set(DONE[day] || []);
+        elList.innerHTML = '';
+
+        // Сортируем задачи по времени начала (если есть) или по дате создания
+        const sortedTasks = [...DATA].sort((a, b) => {
+          const aStartTime = a.startTime || a.createdAt || 0;
+          const bStartTime = b.startTime || b.createdAt || 0;
+          return aStartTime - bStartTime;
+        });
+
+        sortedTasks.forEach((task) => {
+          const isDone = doneSet.has(task.id);
+          elList.appendChild(renderTask(task, isDone));
+        });
+      }
+
+      function renderTask(task, isDone) {
+        const card = document.createElement('div');
+        card.className = 'rounded-xl bg-neutral-900 p-6 border border-neutral-800';
+
+        const header = document.createElement('div');
+        header.className = 'flex items-center gap-4';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = isDone;
+        cb.className = 'size-6';
+        cb.id = `task-${task.id}`;
+        cb.addEventListener('change', async () => {
+          await toggleDone(task.id, cb.checked);
+        });
+
+        const title = document.createElement('label');
+        title.className = 'flex-1 font-semibold text-lg cursor-pointer';
+        title.textContent = task.title;
+        title.setAttribute('for', `task-${task.id}`);
+
+        const timer = document.createElement('div');
+        timer.className = 'text-base text-neutral-400 font-mono';
+        timer.dataset.minutes = task.minutes ?? 25;
+        timer.textContent = formatMMSS((task.minutes ?? 25) * 60 * 1000);
+
+        const btnEdit = document.createElement('button');
+        btnEdit.className =
+          'p-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-300 hover:text-white transition-all duration-200';
+        btnEdit.innerHTML = '✏️';
+        btnEdit.title = 'Редактировать задачу';
+        btnEdit.addEventListener('click', () => openEditModal(task));
+
+        const btnStart = document.createElement('button');
+        btnStart.className =
+          'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium transition-all duration-200';
+        btnStart.textContent = 'Старт';
+        btnStart.addEventListener('click', () => toggleTimer(task.id, timer, btnStart));
+
+        // восстановление состояния после перерендера
+        if (timers.has(task.id)) {
+          const st = timers.get(task.id);
+          timer.textContent = formatMMSS(st.remainMs);
+          btnStart.textContent = st.running ? 'Стоп' : 'Старт';
+          if (st.running) {
+            btnStart.className =
+              'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium transition-all duration-200';
+          }
+        }
+
+        header.append(cb, title, timer, btnEdit, btnStart);
+        card.appendChild(header);
+
+        // Подзадачи (локальный чек — без сервера)
+        if (Array.isArray(task.subtasks) && task.subtasks.length) {
+          const ul = document.createElement('ul');
+          ul.className = 'mt-4 grid gap-3';
+          task.subtasks.forEach((s) => {
+            const li = document.createElement('li');
+            li.className = 'flex items-center gap-3';
+            const c = document.createElement('input');
+            c.type = 'checkbox';
+            c.className = 'size-5';
+            c.id = `subtask-${task.id}-${s.replace(/\s+/g, '-')}`;
+            c.addEventListener('change', () => {
+              li.classList.toggle('opacity-50', c.checked);
+              t.classList.toggle('line-through', c.checked);
+            });
+            const t = document.createElement('label');
+            t.className = 'text-base text-neutral-300 cursor-pointer flex-1';
+            t.textContent = s;
+            t.setAttribute('for', `subtask-${task.id}-${s.replace(/\s+/g, '-')}`);
+            li.append(c, t);
+            ul.appendChild(li);
+          });
+          card.appendChild(ul);
+        }
+
+        if (isDone) {
+          card.classList.add('opacity-60');
+          title.classList.add('line-through');
+        }
+        return card;
+      }
+
+      function formatMMSS(ms) {
+        const sec = Math.max(0, Math.round(ms / 1000));
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        return `${m}:${s}`;
+      }
+
+      function startInterval(taskId, labelEl, btn) {
+        const state = timers.get(taskId);
+        if (!state) return;
+        state.running = true;
+        btn.textContent = 'Стоп';
+        btn.disabled = false;
+        btn.className =
+          'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium transition-all duration-200';
+
+        // Записываем время начала задачи
+        const task = DATA.find((x) => x.id === taskId);
+        if (task && !task.startTime) {
+          task.startTime = Date.now();
+          saveData(); // Сохраняем время начала
+        }
+
+        const beep = document.getElementById('beep');
+        const title = (task || {}).title || '';
+
+        state.id = setInterval(() => {
+          state.remainMs -= 1000;
+          labelEl.textContent = formatMMSS(state.remainMs);
+          if (state.remainMs <= 0) {
+            clearInterval(state.id);
+            state.id = null;
+            state.running = false;
+            state.remainMs = 0;
+            btn.textContent = 'Старт';
+            btn.className =
+              'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium transition-all duration-200';
+            try {
+              beep.currentTime = 0;
+              beep.play();
+              // Останавливаем звук через 3 секунды
+              setTimeout(() => {
+                beep.pause();
+                beep.currentTime = 0;
+              }, 3000);
+            } catch {}
+            notify('Таймер завершён', `Задача: ${title}`);
+          }
+        }, 1000);
+      }
+
+      async function toggleTimer(taskId, labelEl, btn) {
+        await ensureNotifyPermission();
+
+        // создать состояние, если его ещё нет
+        if (!timers.has(taskId)) {
+          const minutes = parseInt(labelEl.dataset.minutes || '25', 10);
+          timers.set(taskId, { remainMs: minutes * 60 * 1000, id: null, running: false });
+        }
+
+        const state = timers.get(taskId);
+
+        // если запущен — ставим на паузу
+        if (state.running) {
+          clearInterval(state.id);
+          state.id = null;
+          state.running = false;
+          btn.textContent = 'Старт';
+          btn.className =
+            'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium transition-all duration-200';
+          return;
+        }
+
+        // если на паузе/ещё не запускался — запускаем/продолжаем
+        startInterval(taskId, labelEl, btn);
+      }
+
+      async function toggleDone(taskId, checked) {
+        // стоп таймера
+        if (timers.has(taskId)) {
+          const st = timers.get(taskId);
+          if (st.running) clearInterval(st.id);
+          timers.delete(taskId);
+        }
+
+        const day = todayKey();
+        const arr = Array.from(new Set([...(DONE[day] || [])]));
+        if (checked) {
+          if (!arr.includes(taskId)) arr.push(taskId);
+        } else {
+          const i = arr.indexOf(taskId);
+          if (i >= 0) arr.splice(i, 1);
+        }
+        DONE[day] = arr;
+        await saveDone();
+        render();
+      }
+
+      // ===== Создание задачи =====
+      const modal = document.getElementById('modal');
+      document.getElementById('btnNew').onclick = () => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      };
+      document.getElementById('mCancel').onclick = () => {
+        modal.classList.add('hidden');
+      };
+
+      document.getElementById('mSave').onclick = async () => {
+        const title = document.getElementById('mTitle').value.trim();
+        const minutes = parseInt(document.getElementById('mMinutes').value || '25', 10);
+        const subs = document
+          .getElementById('mSubs')
+          .value.split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!title) return;
+        DATA.push({
+          id: crypto.randomUUID(),
+          title,
+          minutes,
+          subtasks: subs,
+          createdAt: Date.now(),
+        });
+        await saveData();
+        modal.classList.add('hidden');
+        document.getElementById('mTitle').value = '';
+        document.getElementById('mSubs').value = '';
+        render();
+      };
+
+      // ===== Редактирование задачи =====
+      let currentEditTask = null;
+      const editModal = document.getElementById('editModal');
+
+      function openEditModal(task) {
+        currentEditTask = task;
+        document.getElementById('eTitle').value = task.title;
+        document.getElementById('eMinutes').value = task.minutes || 25;
+        document.getElementById('eSubs').value = (task.subtasks || []).join('\n');
+        editModal.classList.remove('hidden');
+        editModal.classList.add('flex');
+      }
+
+      document.getElementById('eCancel').onclick = () => {
+        editModal.classList.add('hidden');
+        currentEditTask = null;
+      };
+
+      document.getElementById('eSave').onclick = async () => {
+        if (!currentEditTask) return;
+
+        const title = document.getElementById('eTitle').value.trim();
+        const minutes = parseInt(document.getElementById('eMinutes').value || '25', 10);
+        const subs = document
+          .getElementById('eSubs')
+          .value.split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        if (!title) return;
+
+        // Обновляем задачу
+        const taskIndex = DATA.findIndex((t) => t.id === currentEditTask.id);
+        if (taskIndex !== -1) {
+          DATA[taskIndex] = {
+            ...DATA[taskIndex],
+            title,
+            minutes,
+            subtasks: subs,
+          };
+          await saveData();
+        }
+
+        editModal.classList.add('hidden');
+        currentEditTask = null;
+        render();
+      };
+
+      document.getElementById('eDelete').onclick = async () => {
+        if (!currentEditTask) return;
+
+        // Подтверждение удаления
+        if (!confirm(`Вы уверены, что хотите удалить задачу "${currentEditTask.title}"?`)) {
+          return;
+        }
+
+        // Удаляем задачу из DATA
+        const taskIndex = DATA.findIndex((t) => t.id === currentEditTask.id);
+        if (taskIndex !== -1) {
+          DATA.splice(taskIndex, 1);
+          await saveData();
+        }
+
+        // Останавливаем таймер если он запущен
+        if (timers.has(currentEditTask.id)) {
+          const st = timers.get(currentEditTask.id);
+          if (st.running) clearInterval(st.id);
+          timers.delete(currentEditTask.id);
+        }
+
+        editModal.classList.add('hidden');
+        currentEditTask = null;
+        render();
+      };
+
+      // ===== Старт =====
+      (async function init() {
+        await loadStateFromServer();
+        render();
+      })();
+    </script>
+  </body>
+</html>
