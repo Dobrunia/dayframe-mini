@@ -284,9 +284,22 @@
         const day = todayKey();
         const doneSet = new Set(DONE[day] || []);
         elList.innerHTML = '';
-        const sorted = [...DATA].sort(
-          (a, b) => (a.startTime || a.createdAt || 0) - (b.startTime || b.createdAt || 0)
-        );
+        const sorted = [...DATA].sort((a, b) => {
+          // Сначала задачи с plannedTime (по времени начала)
+          const aHasTime = !!a.plannedTime;
+          const bHasTime = !!b.plannedTime;
+
+          if (aHasTime && !bHasTime) return -1;
+          if (!aHasTime && bHasTime) return 1;
+
+          if (aHasTime && bHasTime) {
+            // Обе имеют время - сортируем по времени
+            return a.plannedTime.localeCompare(b.plannedTime);
+          } else {
+            // Обе без времени - сортируем по алфавиту
+            return a.title.localeCompare(b.title);
+          }
+        });
         sorted.forEach((task) => elList.appendChild(renderTask(task, doneSet.has(task.id))));
       }
       function renderTask(task, isDone) {
