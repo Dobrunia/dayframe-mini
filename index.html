@@ -205,6 +205,106 @@
     <audio id="beep" src="./time-over.mp3" preload="auto"></audio>
 
     <script>
+      // ===== Web Worker для фонового таймера =====
+      let timerWorker = null;
+
+      function createTimerWorker() {
+        if (timerWorker) return timerWorker;
+
+        const workerCode = `
+          let timers = new Map();
+          
+          self.onmessage = function(e) {
+            const { action, taskId, minutes } = e.data;
+            
+            switch(action) {
+              case 'start':
+                if (timers.has(taskId)) {
+                  clearInterval(timers.get(taskId));
+                }
+                const intervalId = setInterval(() => {
+                  self.postMessage({ action: 'tick', taskId });
+                }, 1000);
+                timers.set(taskId, intervalId);
+                break;
+                
+              case 'stop':
+                if (timers.has(taskId)) {
+                  clearInterval(timers.get(taskId));
+                  timers.delete(taskId);
+                }
+                break;
+                
+              case 'stopAll':
+                timers.forEach(id => clearInterval(id));
+                timers.clear();
+                break;
+            }
+          };
+        `;
+
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        timerWorker = new Worker(URL.createObjectURL(blob));
+
+        timerWorker.onmessage = function (e) {
+          const { action, taskId } = e.data;
+          if (action === 'tick') {
+            handleTimerTick(taskId);
+          }
+        };
+
+        return timerWorker;
+      }
+
+      function handleTimerTick(taskId) {
+        if (!timers.has(taskId)) return;
+
+        const st = timers.get(taskId);
+        st.remainMs -= 1000;
+
+        // Обновляем UI
+        const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (taskElement) {
+          const timerEl = taskElement.querySelector('.timer-display');
+          if (timerEl) {
+            timerEl.textContent = formatMMSS(st.remainMs);
+          }
+        }
+
+        if (st.remainMs <= 0) {
+          // Таймер завершен
+          timerWorker.postMessage({ action: 'stop', taskId });
+          st.remainMs = 0;
+          st.running = false;
+
+          // Обновляем кнопку
+          const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+          if (taskElement) {
+            const btnEl = taskElement.querySelector('.timer-btn');
+            if (btnEl) {
+              btnEl.textContent = 'Старт';
+              btnEl.className =
+                'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
+            }
+          }
+
+          // Звук и уведомление
+          const beep = document.getElementById('beep');
+          const task = DATA.find((x) => x.id === taskId);
+          const title = task ? task.title : '';
+
+          try {
+            beep.currentTime = 0;
+            beep.play();
+            setTimeout(() => {
+              beep.pause();
+              beep.currentTime = 0;
+            }, 3000);
+          } catch {}
+
+          notify('Таймер завершён', `Задача: ${title}`);
+        }
+      }
       // ===== Время (Москва) =====
       const MSK = 'Europe/Moscow';
       const fmtDate = (d) =>
@@ -305,6 +405,7 @@
       function renderTask(task, isDone) {
         const card = document.createElement('div');
         card.className = 'rounded-xl bg-neutral-900 p-6 border border-neutral-800';
+        card.setAttribute('data-task-id', task.id);
         const header = document.createElement('div');
         header.className = 'flex items-center gap-4';
         const cb = document.createElement('input');
@@ -320,7 +421,7 @@
         title.textContent = task.title;
         title.setAttribute('for', `task-${task.id}`);
         const timer = document.createElement('div');
-        timer.className = 'text-base text-neutral-400 font-mono';
+        timer.className = 'text-base text-neutral-400 font-mono timer-display';
         timer.dataset.minutes = task.minutes ?? 25;
         timer.textContent = formatMMSS((task.minutes ?? 25) * 60 * 1000);
         const planned = document.createElement('div');
@@ -334,7 +435,7 @@
         btnEdit.addEventListener('click', () => openEditModal(task));
         const btnStart = document.createElement('button');
         btnStart.className =
-          'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
+          'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent timer-btn';
         btnStart.textContent = 'Старт';
         btnStart.addEventListener('click', () => toggleTimer(task.id, timer, btnStart));
         if (timers.has(task.id)) {
@@ -397,30 +498,10 @@
           task.startTime = Date.now();
           saveData();
         }
-        const beep = document.getElementById('beep');
-        const title = (task || {}).title || '';
-        st.id = setInterval(() => {
-          st.remainMs -= 1000;
-          labelEl.textContent = formatMMSS(st.remainMs);
-          if (st.remainMs <= 0) {
-            clearInterval(st.id);
-            st.id = null;
-            st.running = false;
-            st.remainMs = 0;
-            btn.textContent = 'Старт';
-            btn.className =
-              'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
-            try {
-              beep.currentTime = 0;
-              beep.play();
-              setTimeout(() => {
-                beep.pause();
-                beep.currentTime = 0;
-              }, 3000);
-            } catch {}
-            notify('Таймер завершён', `Задача: ${title}`);
-          }
-        }, 1000);
+
+        // Запускаем таймер через Web Worker
+        createTimerWorker();
+        timerWorker.postMessage({ action: 'start', taskId });
       }
       async function toggleTimer(taskId, labelEl, btn) {
         await ensureNotifyPermission();
@@ -430,8 +511,10 @@
         }
         const st = timers.get(taskId);
         if (st.running) {
-          clearInterval(st.id);
-          st.id = null;
+          // Останавливаем таймер через Web Worker
+          if (timerWorker) {
+            timerWorker.postMessage({ action: 'stop', taskId });
+          }
           st.running = false;
           btn.textContent = 'Старт';
           btn.className =
@@ -443,7 +526,9 @@
       async function toggleDone(taskId, checked) {
         if (timers.has(taskId)) {
           const st = timers.get(taskId);
-          if (st.running) clearInterval(st.id);
+          if (st.running && timerWorker) {
+            timerWorker.postMessage({ action: 'stop', taskId });
+          }
           timers.delete(taskId);
         }
         const day = todayKey();
@@ -544,7 +629,9 @@
         }
         if (timers.has(currentEditTask.id)) {
           const st = timers.get(currentEditTask.id);
-          if (st.running) clearInterval(st.id);
+          if (st.running && timerWorker) {
+            timerWorker.postMessage({ action: 'stop', taskId: currentEditTask.id });
+          }
           timers.delete(currentEditTask.id);
         }
         editModal.classList.add('hidden');
@@ -850,6 +937,9 @@
       loadStateFromServer().then(() => {
         render();
       });
+
+      // Инициализируем Web Worker для таймеров
+      createTimerWorker();
 
       // Запускаем аниме воду по умолчанию
       createVoronoiWaveBackground();
