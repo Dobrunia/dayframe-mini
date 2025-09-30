@@ -51,6 +51,33 @@
         height: 100%;
         display: block;
       }
+
+      /* SVG иконки для кнопок таймера */
+      .timer-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        background: transparent;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .timer-btn svg {
+        width: 40px;
+        height: 40px;
+      }
+
+      .timer-btn.play svg {
+        fill: rgb(34 197 94);
+      }
+
+      .timer-btn.pause svg {
+        fill: rgb(239 68 68);
+      }
     </style>
   </head>
   <body
@@ -282,9 +309,12 @@
           if (taskElement) {
             const btnEl = taskElement.querySelector('.timer-btn');
             if (btnEl) {
-              btnEl.textContent = 'Старт';
-              btnEl.className =
-                'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
+              btnEl.className = 'timer-btn play';
+              btnEl.innerHTML = `
+                <svg viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              `;
             }
           }
 
@@ -434,17 +464,30 @@
         btnEdit.title = 'Редактировать задачу';
         btnEdit.addEventListener('click', () => openEditModal(task));
         const btnStart = document.createElement('button');
-        btnStart.className =
-          'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent timer-btn';
-        btnStart.textContent = 'Старт';
+        btnStart.className = 'timer-btn play';
+        btnStart.innerHTML = `
+          <svg viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        `;
         btnStart.addEventListener('click', () => toggleTimer(task.id, timer, btnStart));
         if (timers.has(task.id)) {
           const st = timers.get(task.id);
           timer.textContent = formatMMSS(st.remainMs);
-          btnStart.textContent = st.running ? 'Стоп' : 'Старт';
           if (st.running) {
-            btnStart.className =
-              'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium';
+            btnStart.className = 'timer-btn pause';
+            btnStart.innerHTML = `
+              <svg viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              </svg>
+            `;
+          } else {
+            btnStart.className = 'timer-btn play';
+            btnStart.innerHTML = `
+              <svg viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            `;
           }
         }
         header.append(cb, title, timer, btnEdit, btnStart);
@@ -489,10 +532,13 @@
         const st = timers.get(taskId);
         if (!st) return;
         st.running = true;
-        btn.textContent = 'Стоп';
+        btn.className = 'timer-btn pause';
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24">
+            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+          </svg>
+        `;
         btn.disabled = false;
-        btn.className =
-          'px-4 py-2 rounded-lg bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 text-base font-medium';
         const task = DATA.find((x) => x.id === taskId);
         if (task && !task.startTime) {
           task.startTime = Date.now();
@@ -516,9 +562,12 @@
             timerWorker.postMessage({ action: 'stop', taskId });
           }
           st.running = false;
-          btn.textContent = 'Старт';
-          btn.className =
-            'px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-base font-medium border-2 border-transparent';
+          btn.className = 'timer-btn play';
+          btn.innerHTML = `
+            <svg viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          `;
           return;
         }
         startInterval(taskId, labelEl, btn);
