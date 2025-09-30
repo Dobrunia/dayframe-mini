@@ -111,7 +111,7 @@
 
     <!-- Модал создания задачи -->
     <div id="modal" class="fixed inset-0 hidden items-center justify-center bg-black/60 z-50">
-      <div class="bg-neutral-900 w-full max-w-lg rounded-xl p-6">
+      <div class="bg-neutral-900 w-full max-w-lg rounded-xl p-6" onclick="event.stopPropagation()">
         <div class="text-xl font-semibold mb-4">Новая задача</div>
         <label class="block mb-4 text-base">
           Заголовок
@@ -167,7 +167,7 @@
 
     <!-- Модал редактирования задачи -->
     <div id="editModal" class="fixed inset-0 hidden items-center justify-center bg-black/60 z-50">
-      <div class="bg-neutral-900 w-full max-w-lg rounded-xl p-6">
+      <div class="bg-neutral-900 w-full max-w-lg rounded-xl p-6" onclick="event.stopPropagation()">
         <div class="text-xl font-semibold mb-4">Редактировать задачу</div>
         <label class="block mb-4 text-base">
           Заголовок
@@ -602,6 +602,9 @@
       document.getElementById('mCancel').onclick = () => {
         modal.classList.add('hidden');
       };
+      modal.onclick = () => {
+        modal.classList.add('hidden');
+      };
       document.getElementById('mSave').onclick = async () => {
         const title = document.getElementById('mTitle').value.trim();
         const minutes = parseInt(document.getElementById('mMinutes').value || '25', 10);
@@ -639,6 +642,10 @@
         editModal.classList.add('flex');
       }
       document.getElementById('eCancel').onclick = () => {
+        editModal.classList.add('hidden');
+        currentEditTask = null;
+      };
+      editModal.onclick = () => {
         editModal.classList.add('hidden');
         currentEditTask = null;
       };
