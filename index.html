@@ -301,7 +301,11 @@
         if (st.remainMs <= 0) {
           // Таймер завершен
           timerWorker.postMessage({ action: 'stop', taskId });
-          st.remainMs = 0;
+
+          // Сбрасываем таймер к исходному времени
+          const task = DATA.find((x) => x.id === taskId);
+          const originalMinutes = task ? task.minutes || 25 : 25;
+          st.remainMs = originalMinutes * 60 * 1000;
           st.running = false;
 
           // Обновляем кнопку
@@ -316,11 +320,15 @@
                 </svg>
               `;
             }
+            // Обновляем отображение времени
+            const timerEl = taskElement.querySelector('.timer-display');
+            if (timerEl) {
+              timerEl.textContent = formatMMSS(st.remainMs);
+            }
           }
 
           // Звук и уведомление
           const beep = document.getElementById('beep');
-          const task = DATA.find((x) => x.id === taskId);
           const title = task ? task.title : '';
 
           try {
