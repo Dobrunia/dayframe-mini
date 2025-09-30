@@ -716,7 +716,7 @@
         let dx = 2,
           dy = 1.5;
         const logo = 'DVD';
-        const logoSize = 48;
+        const logoSize = 88;
         let logoColor = '#ff6b6b';
 
         function resize() {
@@ -733,19 +733,22 @@
           x += dx;
           y += dy;
 
+          // Получаем реальную ширину текста
+          ctx.font = `bold ${logoSize}px Arial`;
+          const textWidth = ctx.measureText(logo).width;
+
           // Отскок от стен
-          if (x <= 0 || x >= canvas.width - logoSize * 3) {
+          if (x <= textWidth / 2 || x >= canvas.width - textWidth / 2) {
             dx = -dx;
             logoColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
           }
-          if (y <= 0 || y >= canvas.height - logoSize) {
+          if (y <= logoSize / 2 || y >= canvas.height - logoSize / 2) {
             dy = -dy;
             logoColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
           }
 
           // Рисуем логотип
           ctx.fillStyle = logoColor;
-          ctx.font = `bold ${logoSize}px Arial`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(logo, x, y);
