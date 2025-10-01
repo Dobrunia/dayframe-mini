@@ -140,6 +140,18 @@
           />
         </label>
         <label class="block mb-4 text-base">
+          <input id="mOneTime" type="checkbox" class="mr-2" />
+          Одноразовая задача (только на выбранную дату)
+        </label>
+        <label class="block mb-4 text-base" id="mDateLabel" style="display: none">
+          Дата выполнения
+          <input
+            id="mDate"
+            type="date"
+            class="mt-2 w-40 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+          />
+        </label>
+        <label class="block mb-4 text-base">
           Подзадачи (по одной в строке)
           <textarea
             id="mSubs"
@@ -193,6 +205,18 @@
             id="ePlannedTime"
             type="time"
             class="mt-2 w-32 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
+          />
+        </label>
+        <label class="block mb-4 text-base">
+          <input id="eOneTime" type="checkbox" class="mr-2" />
+          Одноразовая задача (только на выбранную дату)
+        </label>
+        <label class="block mb-4 text-base" id="eDateLabel" style="display: none">
+          Дата выполнения
+          <input
+            id="eDate"
+            type="date"
+            class="mt-2 w-40 px-4 py-3 rounded-lg bg-neutral-800 outline-none text-base"
           />
         </label>
         <label class="block mb-4 text-base">
@@ -422,7 +446,16 @@
         const day = todayKey();
         const doneSet = new Set(DONE[day] || []);
         elList.innerHTML = '';
-        const sorted = [...DATA].sort((a, b) => {
+
+        // Фильтруем задачи: показываем только обычные или одноразовые на сегодня
+        const filteredTasks = DATA.filter((task) => {
+          if (task.oneTime && task.targetDate) {
+            return task.targetDate === day;
+          }
+          return !task.oneTime; // Показываем обычные задачи всегда
+        });
+
+        const sorted = [...filteredTasks].sort((a, b) => {
           // Сначала задачи с plannedTime (по времени начала)
           const aHasTime = !!a.plannedTime;
           const bHasTime = !!b.plannedTime;
@@ -442,7 +475,14 @@
       }
       function renderTask(task, isDone) {
         const card = document.createElement('div');
-        card.className = 'rounded-xl bg-neutral-900 p-6 border border-neutral-800';
+        let cardClasses = 'rounded-xl bg-neutral-900 p-6 border border-neutral-800';
+
+        // Добавляем специальный стиль для одноразовых задач
+        if (task.oneTime && task.targetDate) {
+          cardClasses += ' border-blue-500/50 bg-blue-950/20';
+        }
+
+        card.className = cardClasses;
         card.setAttribute('data-task-id', task.id);
         const header = document.createElement('div');
         header.className = 'flex items-center gap-4';
@@ -455,8 +495,20 @@
           await toggleDone(task.id, cb.checked);
         });
         const title = document.createElement('label');
-        title.className = 'flex-1 font-semibold text-lg cursor-pointer';
-        title.textContent = task.title;
+        title.className = 'flex-1 font-semibold text-lg cursor-pointer flex items-center gap-2';
+
+        // Добавляем иконку для одноразовых задач
+        if (task.oneTime && task.targetDate) {
+          title.innerHTML = `
+            <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
+            </svg>
+            ${task.title}
+          `;
+        } else {
+          title.textContent = task.title;
+        }
+
         title.setAttribute('for', `task-${task.id}`);
         const timer = document.createElement('div');
         timer.className = 'text-base text-neutral-400 font-mono timer-display';
@@ -464,7 +516,19 @@
         timer.textContent = formatMMSS((task.minutes ?? 25) * 60 * 1000);
         const planned = document.createElement('div');
         planned.className = 'text-sm text-neutral-400';
-        planned.textContent = task.plannedTime ? `Начало в ${task.plannedTime}` : '';
+        let plannedText = '';
+        if (task.plannedTime) {
+          plannedText += `Начало в ${task.plannedTime}`;
+        }
+        if (task.oneTime && task.targetDate) {
+          const targetDate = new Date(task.targetDate);
+          const dateStr = targetDate.toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+          });
+          plannedText += plannedText ? ` • ${dateStr}` : dateStr;
+        }
+        planned.textContent = plannedText;
         const btnEdit = document.createElement('button');
         btnEdit.className =
           'p-2 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-neutral-300 hover:text-white';
@@ -606,6 +670,10 @@
       document.getElementById('btnNew').onclick = () => {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+        // Сброс полей
+        document.getElementById('mOneTime').checked = false;
+        document.getElementById('mDateLabel').style.display = 'none';
+        document.getElementById('mDate').value = '';
       };
       document.getElementById('mCancel').onclick = () => {
         modal.classList.add('hidden');
@@ -613,29 +681,56 @@
       modal.onclick = () => {
         modal.classList.add('hidden');
       };
+
+      // Обработка чекбокса одноразовой задачи
+      document.getElementById('mOneTime').addEventListener('change', (e) => {
+        const dateLabel = document.getElementById('mDateLabel');
+        if (e.target.checked) {
+          dateLabel.style.display = 'block';
+          // Устанавливаем сегодняшнюю дату по умолчанию
+          const today = new Date().toISOString().split('T')[0];
+          document.getElementById('mDate').value = today;
+        } else {
+          dateLabel.style.display = 'none';
+          document.getElementById('mDate').value = '';
+        }
+      });
       document.getElementById('mSave').onclick = async () => {
         const title = document.getElementById('mTitle').value.trim();
         const minutes = parseInt(document.getElementById('mMinutes').value || '25', 10);
         const plannedTime = document.getElementById('mPlannedTime').value;
+        const isOneTime = document.getElementById('mOneTime').checked;
+        const targetDate = document.getElementById('mDate').value;
         const subs = document
           .getElementById('mSubs')
           .value.split('\n')
           .map((s) => s.trim())
           .filter(Boolean);
         if (!title) return;
-        DATA.push({
+
+        const newTask = {
           id: crypto.randomUUID(),
           title,
           minutes,
           plannedTime: plannedTime || null,
           subtasks: subs,
           createdAt: Date.now(),
-        });
+        };
+
+        if (isOneTime && targetDate) {
+          newTask.oneTime = true;
+          newTask.targetDate = targetDate;
+        }
+
+        DATA.push(newTask);
         await saveData();
         modal.classList.add('hidden');
         document.getElementById('mTitle').value = '';
         document.getElementById('mPlannedTime').value = '';
         document.getElementById('mSubs').value = '';
+        document.getElementById('mOneTime').checked = false;
+        document.getElementById('mDateLabel').style.display = 'none';
+        document.getElementById('mDate').value = '';
         render();
       };
       let currentEditTask = null;
@@ -646,6 +741,18 @@
         document.getElementById('eMinutes').value = task.minutes || 25;
         document.getElementById('ePlannedTime').value = task.plannedTime || '';
         document.getElementById('eSubs').value = (task.subtasks || []).join('\n');
+
+        // Обработка одноразовой задачи
+        const isOneTime = task.oneTime || false;
+        document.getElementById('eOneTime').checked = isOneTime;
+        if (isOneTime && task.targetDate) {
+          document.getElementById('eDateLabel').style.display = 'block';
+          document.getElementById('eDate').value = task.targetDate;
+        } else {
+          document.getElementById('eDateLabel').style.display = 'none';
+          document.getElementById('eDate').value = '';
+        }
+
         editModal.classList.remove('hidden');
         editModal.classList.add('flex');
       }
@@ -657,11 +764,29 @@
         editModal.classList.add('hidden');
         currentEditTask = null;
       };
+
+      // Обработка чекбокса одноразовой задачи в редактировании
+      document.getElementById('eOneTime').addEventListener('change', (e) => {
+        const dateLabel = document.getElementById('eDateLabel');
+        if (e.target.checked) {
+          dateLabel.style.display = 'block';
+          // Если дата не установлена, ставим сегодняшнюю
+          if (!document.getElementById('eDate').value) {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('eDate').value = today;
+          }
+        } else {
+          dateLabel.style.display = 'none';
+          document.getElementById('eDate').value = '';
+        }
+      });
       document.getElementById('eSave').onclick = async () => {
         if (!currentEditTask) return;
         const title = document.getElementById('eTitle').value.trim();
         const minutes = parseInt(document.getElementById('eMinutes').value || '25', 10);
         const plannedTime = document.getElementById('ePlannedTime').value;
+        const isOneTime = document.getElementById('eOneTime').checked;
+        const targetDate = document.getElementById('eDate').value;
         const subs = document
           .getElementById('eSubs')
           .value.split('\n')
@@ -670,13 +795,23 @@
         if (!title) return;
         const i = DATA.findIndex((t) => t.id === currentEditTask.id);
         if (i !== -1) {
-          DATA[i] = {
+          const updatedTask = {
             ...DATA[i],
             title,
             minutes,
             plannedTime: plannedTime || null,
             subtasks: subs,
           };
+
+          if (isOneTime && targetDate) {
+            updatedTask.oneTime = true;
+            updatedTask.targetDate = targetDate;
+          } else {
+            delete updatedTask.oneTime;
+            delete updatedTask.targetDate;
+          }
+
+          DATA[i] = updatedTask;
           await saveData();
         }
         editModal.classList.add('hidden');
